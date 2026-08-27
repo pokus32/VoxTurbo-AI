@@ -1,0 +1,85 @@
+name: Build Windows Release
+
+on:
+  push:
+    branches:
+      - main
+      - feature/windows-build
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows x64 Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Download pre-built whisper.cpp Windows binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path bin -Force | Out-Null
+          $whisperZip = "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip"
+          $tempZip = Join-Path $env:TEMP "whisper-bin.zip"
+          Invoke-WebRequest -Uri $whisperZip -OutFile $tempZip
+          Expand-Archive -Path $tempZip -DestinationPath bin -Force
+          Remove-Item $tempZip -Force
+          Get-ChildItem -Path bin
+
+      - name: Build Standalone Executable with PyInstaller
+        run: |
+          pyinstaller voxturbo.spec --noconfirm
+
+      - name: Build Installer with Inno Setup
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" scripts\installer.iss
+
+      - name: Compute SHA256 Hash
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Path dist_installer\VoxTurbo-Setup-x64.exe -Algorithm SHA256).Hash
+          Write-Host "=================================================="
+          Write-Host "Installer SHA256: $hash"
+          Write-Host "=================================================="
+          $hash | Out-File -FilePath dist_installer\sha256.txt
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxTurbo-Windows-Installer
+          path: |
+            dist_installer/VoxTurbo-Setup-x64.exe
+            dist_installer/sha256.txt
+
+      - name: Create GitHub Release (on tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist_installer/VoxTurbo-Setup-x64.exe
+            dist_installer/sha256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
