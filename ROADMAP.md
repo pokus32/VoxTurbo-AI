@@ -4,22 +4,24 @@ This document tracks planned architectural enhancements, upcoming features, and 
 
 ---
 
-## 🎯 Milestone 1: Intelligent Punctuation & Capitalization for GigaAM v2
-* **Background:** GigaAM v2 Conformer-CTC provides ultra-fast transcription (~0.2x–0.5x RTF), but outputs unpunctuated lowercase text.
-* **Goal:** Integrate a lightweight neural post-processor (e.g. Silero Punctuation or compact ONNX-based model).
+## ✅ Milestone 1: Intelligent Punctuation & Capitalization for GigaAM v2 [COMPLETED]
+* **Status:** Implemented in `src/engine/punctuator.py` via resident Silero TE package (`v2_4lang_q.pt`).
+* **Performance:** ~30–50ms neural inference latency in RAM.
 * **Benefits:** 
-  - Restores full stops, commas, question marks, and capitalization.
-  - Adds ~15–30ms latency while delivering Whisper-grade formatted text at GigaAM speed.
+  - Restores full stops, commas, question marks, and capitalization in real time.
+  - Full support for `ru`, `en`, `de`, `es` with graceful fallback.
+  - Toggleable via system tray menu (`🔤 Smart Punctuation (Silero TE)`).
 
 ---
 
-## 🎨 Milestone 2: Modern Floating Voice HUD / Waveform Overlay
-* **Background:** Status indication currently relies on system tray icons and notifications.
-* **Goal:** Implement an optional frameless, semi-transparent desktop overlay widget (PyQt5 / QPainter).
+## ✅ Milestone 2: Modern Floating Voice HUD / Waveform Overlay [COMPLETED]
+* **Status:** Implemented in `src/ui/hud.py` via `VoiceHUDWidget` (PyQt5).
 * **Features:**
-  - Appears near the cursor or bottom-center screen during active recording.
-  - Live audio waveform / volume amplitude visualization.
-  - Smooth fade-in and fade-out animations.
+  - Frameless, translucent glassmorphic overlay widget positioned at bottom-center of active screen.
+  - Live 7-bar audio waveform / amplitude equalizer with smoothed physics and reactive color gradients.
+  - Smooth fade-in (160ms) and fade-out (220ms) animations via `QPropertyAnimation`.
+  - Multi-state indication: 🔴 Listening with elapsed timer, ⏳ Transcribing, ✅ Text Pasted confirmation.
+  - Toggleable via system tray menu (`✨ Floating Voice HUD (Waveform)`).
 
 ---
 
