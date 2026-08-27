@@ -33,11 +33,11 @@
 
 6. **Hands-Free Voice Wake Word (openWakeWord ONNX):**
    - Optional keyword activation (*Hey Jarvis*, *Alexa*, *Okay Google*, *Hey Siri*) with CPU load < 1%.
-   - Auto-finish speech dictation on voice pauses ($\ge 0.8$s).
+   - Auto-finish hands-free speech dictation on voice pauses ($\ge 0.8$s).
    - Custom `.onnx` models directory for any arbitrary user keywords.
 
 7. **Seamless Desktop Integration:**
-   - **Global Hotkey:** `Super + Space` (`Win + Space`) toggles recording from anywhere in the OS.
+   - **Global Hotkey:** `Super + Space` (`Win + Space`) toggles recording (press to start, press again to finish; allows arbitrary pauses).
    - **Auto-Paste:** Immediately types or injects recognized text into the active cursor position (X11 & Wayland).
    - **System Tray & Settings:** Rich menu and full-featured preferences dialog with audio VU-meter.
 

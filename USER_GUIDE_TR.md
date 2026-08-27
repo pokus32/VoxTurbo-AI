@@ -10,12 +10,12 @@ Tüm ses işleme süreci **%100 yerel olarak bilgisayarınızda** gerçekleşir;
 
 VoxTurbo AI'ı iki farklı şekilde kullanabilirsiniz: klavye kısayoluyla veya tamamen eller serbest (sesle).
 
-### Yöntem A. Kısayol Tuşu ile Dikte (Klasik)
+### Yöntem A. Kısayol Tuşu / Buton ile Dikte (Klasik)
 1. Farenizin imlecini yazı yazmak istediğiniz alana getirin (örneğin Telegram mesaj kutusu, Word belgesi veya arama çubuğu).
-2. Klavyenizden **`Win + Boşluk`** (`Super + Space`) tuşlarına basın.
+2. Klavyenizden **`Win + Boşluk`** (`Super + Space`) tuşlarına basın veya tepsi simgesinden başlatın.
    - *Ekranda ses dalgası göstergesi belirir ve sağ alttaki simge kırmızıya döner.*
-3. Mikrofonunuza doğal bir tempoda konuşun.
-4. Kaydı durdurmak için tekrar **`Win + Boşluk`** tuşlarına basın.
+3. Mikrofonunuza konuşun. Cümleler arasında dilediğiniz kadar duraklayabilirsiniz — kayıt sessizlik yüzünden otomatik olarak kapanmaz.
+4. Kaydı tamamlamak için **ikinci kez `Win + Boşluk`** tuşuna basın.
 5. Noktalama işaretleri ve büyük harfleri düzenlenmiş metin anında imlecin bulunduğu yere yazılır.
 
 ---
@@ -78,7 +78,7 @@ Ayarları açmak için tepsideki simgeye sağ tıklayıp **"⚙️ Настро�
 * **Sesli Aktivasyonu Etkinleştir:** Sesle başlatma için işaretleyin.
 * **Anahtar Kelime:** Başlatma kelimesini seçin (*Hey Jarvis, Alexa, Hey Mycroft, Weather, Timer*).
 * **Hassasiyet (Eşik):** Modelin tetiklenme hassasiyetini ayarlar.
-* **Otomatik Durma Süresi:** Konuşma bittikten sonra ne kadar süre sessizlik bekleneceği (varsayılan: 0.8 saniye).
+* **Otomatik Durma Süresi:** Konuşma bittikten sonra ne kadar süre sessizlik bekleneceği (varsayılan: 0.8 saniye). *Not:* Otomatik durma sadece sesli başlatma (Wake Word) modunda çalışır; tuş/buton ile başlatmada sistem ikinci basışı bekler.
 * **Sesli Bildirim:** Kelime algılandığında kısa bir uyarı tonu çalar.
 * **Özel Modeller:** Kendi eğittiğiniz `.onnx` modellerini `models/wakewords/` klasörüne ekleyebilirsiniz.
 

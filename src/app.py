@@ -135,7 +135,7 @@ class VoiceTurboApp:
         self.tray_mgr.show()
 
         # Global hotkey Super+Space
-        self.hotkey_mgr = HotkeyManager(on_hotkey_pressed=self.signals.toggle_signal.emit)
+        self.hotkey_mgr = HotkeyManager(on_hotkey_pressed=lambda: self.signals.toggle_signal.emit("manual"))
         self.hotkey_mgr.start()
 
         # Background backend warmup
@@ -223,21 +223,23 @@ class VoiceTurboApp:
             except Exception:
                 pass
 
-        self.signals.toggle_signal.emit()
+        self.signals.toggle_signal.emit("wakeword")
 
     def _on_auto_silence_stop(self):
         """Handle automatic completion on silence."""
         if self.recorder.is_recording:
             logging.info("🤫 [VoxTurboApp] Auto-silence stop triggered.")
-            self.signals.toggle_signal.emit()
+            self.signals.toggle_signal.emit("auto_silence")
 
-    def toggle_recording(self):
+    def toggle_recording(self, trigger_source: str = "manual", *args, **kwargs):
         if not self.recorder.is_recording:
-            self.start_recording()
+            # When activating by button/hotkey, ignore boolean Qt triggered params and default to manual
+            actual_source = trigger_source if isinstance(trigger_source, str) else "manual"
+            self.start_recording(trigger_source=actual_source)
         else:
             self.stop_recording()
 
-    def start_recording(self):
+    def start_recording(self, trigger_source: str = "manual"):
         if self.recorder.is_recording:
             return
 
@@ -245,8 +247,13 @@ class VoiceTurboApp:
         self.current_session_id = session_id
         self.detected_lang_in_flight = None
 
+        # Auto-silence pause stop (e.g. 0.8s) ONLY activates when triggered by Wake Word (hands-free).
+        # In manual mode (button / hotkey), recording waits for a second button press.
+        enable_auto_silence = (trigger_source == "wakeword")
+
         logging.info(
-            f"Recording started [Session: {session_id[:8]}] "
+            f"Recording started [Session: {session_id[:8]}] [Trigger: {trigger_source}] "
+            f"[Auto-silence: {enable_auto_silence} ({self.wakeword_silence_duration}s)] "
             f"(Model: {self.model_quant}, Threads: {self.cpu_threads}, Lang: {self.target_language})"
         )
 
@@ -264,7 +271,7 @@ class VoiceTurboApp:
             session_id,
             enable_auto_lang=enable_auto,
             chunk_strategy=chunk_strategy,
-            enable_auto_silence=self.enable_wakeword,
+            enable_auto_silence=enable_auto_silence,
             silence_duration=self.wakeword_silence_duration
         )
 

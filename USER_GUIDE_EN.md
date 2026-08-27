@@ -10,12 +10,12 @@ All speech processing happens **100% locally on your computer**, keeping your da
 
 You can use VoxTurbo in two convenient ways: using a keyboard shortcut or completely hands-free using your voice.
 
-### Option A. Shortcut Dictation (Classic)
+### Option A. Shortcut / Button Dictation (Classic)
 1. Place your mouse cursor inside any text field (e.g., Telegram message box, Word document, or browser search bar).
-2. Press **`Win + Space`** (`Super + Space`).
+2. Press **`Win + Space`** (`Super + Space`) or click the tray menu action.
    - *The visual HUD indicator will appear, and the system tray icon will turn red.*
-3. Speak naturally into your microphone.
-4. Press **`Win + Space`** again to stop recording.
+3. Speak naturally into your microphone. You can take any pauses between sentences — recording will not auto-stop on silence.
+4. Press **`Win + Space`** again (second press) to stop recording.
 5. Your formatted text with smart punctuation and capital letters will be typed into the cursor position immediately.
 
 ---
@@ -78,7 +78,7 @@ To open settings, right-click the tray icon and select **"⚙️ Settings..."**.
 * **Enable Wake Word:** Check to keep background listening active.
 * **Trigger Keyword:** Select your preferred wake word (*Hey Jarvis, Alexa, Hey Mycroft, Weather, Timer*).
 * **Sensitivity (Threshold):** Adjust trigger sensitivity (lower = easier trigger, higher = stricter noise rejection).
-* **Auto-Silence Duration:** How long to wait in silence before finishing dictation (default: 0.8 seconds).
+* **Auto-Silence Duration:** How long to wait in silence before finishing dictation (default: 0.8 seconds). *Note:* Auto-silence only applies when triggered hands-free via Wake Word; shortcut/button recording always waits for a manual second press.
 * **Beep on Trigger:** Play an audio feedback tone when the wake word is detected.
 * **Custom Models:** Drop any custom trained `.onnx` models into `models/wakewords/`.
 
