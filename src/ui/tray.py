@@ -17,6 +17,9 @@ class TrayManager:
         on_change_language: Callable[[str], None],
         on_toggle_punctuation: Optional[Callable[[bool], None]] = None,
         on_toggle_hud: Optional[Callable[[bool], None]] = None,
+        on_toggle_wakeword: Optional[Callable[[bool], None]] = None,
+        on_change_wakeword_model: Optional[Callable[[str], None]] = None,
+        get_available_wakewords: Optional[Callable[[], list]] = None,
         on_open_settings: Optional[Callable[[], None]] = None,
         on_quit: Optional[Callable[[], None]] = None,
     ):
@@ -27,6 +30,9 @@ class TrayManager:
         self.on_change_language = on_change_language
         self.on_toggle_punctuation = on_toggle_punctuation
         self.on_toggle_hud = on_toggle_hud
+        self.on_toggle_wakeword = on_toggle_wakeword
+        self.on_change_wakeword_model = on_change_wakeword_model
+        self.get_available_wakewords = get_available_wakewords or (lambda: ["hey_jarvis", "alexa", "ok_google"])
         self.on_open_settings = on_open_settings
         self.on_quit = on_quit or (lambda: None)
 
@@ -131,6 +137,34 @@ class TrayManager:
         )
         self.menu.addAction(self.action_hud)
 
+        # Wake Word submenu
+        self.menu_wakeword = QMenu("🗣️ Wake Word (Hands-Free)", self.menu)
+        self.action_ww_toggle = QAction("🎙️ Enable Wake Word Activation", self.menu, checkable=True)
+        self.action_ww_toggle.triggered.connect(
+            lambda checked: self.on_toggle_wakeword(checked) if self.on_toggle_wakeword else None
+        )
+        self.menu_wakeword.addAction(self.action_ww_toggle)
+        self.menu_wakeword.addSeparator()
+
+        self.ww_model_actions = {}
+        available_ww = self.get_available_wakewords()
+        labels_ww = {
+            "hey_jarvis": "🤖 Hey Jarvis",
+            "alexa": "🔵 Alexa",
+            "hey_mycroft": "🦊 Hey Mycroft",
+            "hey_rhasspy": "🗣️ Hey Rhasspy",
+            "timer": "⏱️ Timer",
+            "weather": "⛅ Weather"
+        }
+        for m in available_ww:
+            lbl = labels_ww.get(m, f"📦 {m}")
+            act = QAction(lbl, self.menu, checkable=True)
+            act.triggered.connect(lambda checked, model_code=m: self.on_change_wakeword_model(model_code) if self.on_change_wakeword_model else None)
+            self.ww_model_actions[m] = act
+            self.menu_wakeword.addAction(act)
+
+        self.menu.addMenu(self.menu_wakeword)
+
         self.menu.addSeparator()
 
         self.action_last_text = QAction(f"💬 Last: {self.last_text[:25]}", self.menu)
@@ -180,7 +214,9 @@ class TrayManager:
         cpu_threads: int,
         language: str,
         enable_punctuation: bool = True,
-        enable_hud: bool = True
+        enable_hud: bool = True,
+        enable_wakeword: bool = False,
+        wakeword_model: str = "hey_jarvis"
     ):
         """Synchronize checkmarks across menus."""
         self.action_gigaam.setChecked(model_quant == "gigaam_v2")
@@ -200,6 +236,10 @@ class TrayManager:
 
         self.action_punct.setChecked(bool(enable_punctuation))
         self.action_hud.setChecked(bool(enable_hud))
+
+        self.action_ww_toggle.setChecked(bool(enable_wakeword))
+        for m_name, act in self.ww_model_actions.items():
+            act.setChecked(m_name == wakeword_model)
 
         label = "GigaAM-v2" if model_quant == "gigaam_v2" else f"Whisper-{model_quant.upper()}"
         self.tray.setToolTip(f"VoxTurbo [{label} | {cpu_threads}T | {language.upper()}] (Win+Space)")

@@ -8,12 +8,13 @@ import numpy as np
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget,
-    QLabel, QComboBox, QSpinBox, QCheckBox, QPushButton,
+    QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QPushButton,
     QProgressBar, QGroupBox, QFormLayout, QMessageBox, QLineEdit
 )
 
 from src.config import (
     CONFIG_FILE,
+    WAKEWORDS_DIR,
     load_user_config,
     save_user_config,
     get_model_path,
@@ -26,13 +27,14 @@ class SettingsDialog(QDialog):
 
     settings_saved = pyqtSignal(dict)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, detector=None):
         super().__init__(parent)
         self.setWindowTitle("⚙️ VoxTurbo AI — Настройки")
-        self.resize(540, 480)
+        self.resize(560, 500)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         self.cfg = load_user_config()
+        self.detector = detector
         self._test_stream = None
         self._test_timer = QTimer(self)
         self._test_timer.timeout.connect(self._update_meter)
@@ -85,7 +87,7 @@ class SettingsDialog(QDialog):
             QLabel {
                 color: #cdd6f4;
             }
-            QComboBox, QSpinBox, QLineEdit {
+            QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {
                 background-color: #313244;
                 color: #cdd6f4;
                 border: 1px solid #45475a;
@@ -118,8 +120,9 @@ class SettingsDialog(QDialog):
                 background-color: #89b4fa;
                 color: #11111b;
                 border-radius: 6px;
-                padding: 8px 18px;
+                padding: 8px 16px;
                 font-weight: bold;
+                border: none;
             }
             QPushButton:hover {
                 background-color: #b4befe;
@@ -127,6 +130,7 @@ class SettingsDialog(QDialog):
             QPushButton#btnCancel {
                 background-color: #313244;
                 color: #cdd6f4;
+                border: 1px solid #45475a;
             }
             QPushButton#btnCancel:hover {
                 background-color: #45475a;
@@ -138,16 +142,19 @@ class SettingsDialog(QDialog):
         self.tabs = QTabWidget()
         self.tab_audio = QWidget()
         self.tab_engine = QWidget()
+        self.tab_wakeword = QWidget()
         self.tab_hotkey = QWidget()
         self.tab_models = QWidget()
 
         self._build_audio_tab()
         self._build_engine_tab()
+        self._build_wakeword_tab()
         self._build_hotkey_tab()
         self._build_models_tab()
 
         self.tabs.addTab(self.tab_audio, "🎙️ Аудио")
         self.tabs.addTab(self.tab_engine, "⚡ Движок")
+        self.tabs.addTab(self.tab_wakeword, "🗣️ Wake Word")
         self.tabs.addTab(self.tab_hotkey, "⌨️ Хоткеи")
         self.tabs.addTab(self.tab_models, "📦 Модели")
 
@@ -239,6 +246,65 @@ class SettingsDialog(QDialog):
         layout.addWidget(grp_opt)
         layout.addStretch()
 
+    def _build_wakeword_tab(self):
+        """Voice wake word activation settings."""
+        layout = QVBoxLayout(self.tab_wakeword)
+
+        grp_ww = QGroupBox("Активация голосом (Hands-Free)")
+        form_ww = QFormLayout(grp_ww)
+
+        self.chk_wakeword = QCheckBox("🎙️ Включить постоянную голосовую активацию (Wake Word)")
+        form_ww.addRow(self.chk_wakeword)
+
+        self.combo_ww_model = QComboBox()
+        available = self.detector.get_available_models() if self.detector else [
+            "hey_jarvis", "alexa", "hey_mycroft", "hey_rhasspy", "timer", "weather"
+        ]
+        labels = {
+            "hey_jarvis": "🤖 Hey Jarvis (Рекомендуется)",
+            "alexa": "🔵 Alexa",
+            "hey_mycroft": "🦊 Hey Mycroft",
+            "hey_rhasspy": "🗣️ Hey Rhasspy",
+            "timer": "⏱️ Timer",
+            "weather": "⛅ Weather"
+        }
+        for m in available:
+            lbl = labels.get(m, f"📦 {m} (Кастомная ONNX)")
+            self.combo_ww_model.addItem(lbl, m)
+        form_ww.addRow("Ключевое слово:", self.combo_ww_model)
+
+        self.spin_ww_thresh = QDoubleSpinBox()
+        self.spin_ww_thresh.setRange(0.1, 1.0)
+        self.spin_ww_thresh.setSingleStep(0.05)
+        self.spin_ww_thresh.setValue(0.6)
+        form_ww.addRow("Чувствительность (Порог):", self.spin_ww_thresh)
+
+        self.spin_ww_silence = QDoubleSpinBox()
+        self.spin_ww_silence.setRange(0.3, 3.0)
+        self.spin_ww_silence.setSingleStep(0.1)
+        self.spin_ww_silence.setValue(0.8)
+        self.spin_ww_silence.setSuffix(" сек")
+        form_ww.addRow("Автозавершение при паузе:", self.spin_ww_silence)
+
+        self.chk_ww_beep = QCheckBox("🔔 Звуковой сигнал при срабатывании")
+        form_ww.addRow(self.chk_ww_beep)
+
+        layout.addWidget(grp_ww)
+
+        grp_info = QGroupBox("Кастомные модели и новые слова")
+        vbox_info = QVBoxLayout(grp_info)
+        lbl_info = QLabel(
+            f"Вы можете добавить свои обученные модели (на русском, турецком или английском), "
+            f"поместив <b>.onnx</b> файлы в директорию:<br>"
+            f"<code style='color: #89b4fa;'>{WAKEWORDS_DIR}</code>"
+        )
+        lbl_info.setWordWrap(True)
+        lbl_info.setStyleSheet("color: #a6adc8; font-size: 12px;")
+        vbox_info.addWidget(lbl_info)
+        layout.addWidget(grp_info)
+
+        layout.addStretch()
+
     def _build_hotkey_tab(self):
         """Global shortcut settings."""
         layout = QVBoxLayout(self.tab_hotkey)
@@ -265,27 +331,31 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_models_tab(self):
-        """Local model cache directory and status."""
+        """Installed whisper and neural models information."""
         layout = QVBoxLayout(self.tab_models)
 
-        grp_status = QGroupBox("Статус локальных моделей")
-        form_st = QFormLayout(grp_status)
+        grp_info = QGroupBox("Статус нейросетевых весов")
+        vbox_info = QVBoxLayout(grp_info)
 
-        # Check GigaAM v2
-        lbl_gigaam = QLabel("✅ Загружается в RAM при старте (~480 MB)")
-        form_st.addRow("GigaAM v2 Conformer:", lbl_gigaam)
+        lbl_giga = QLabel("⚡ GigaAM v2 Conformer (PyTorch RAM): <b style='color:#a6e3a1;'>Встроен</b> (~0.5x RTF)")
+        vbox_info.addWidget(lbl_giga)
 
-        # Check Silero TE
-        lbl_te = QLabel("✅ Silero TE v2 (~25 MB)")
-        form_st.addRow("Silero Punctuator:", lbl_te)
+        models = [
+            ("Whisper Large-v3-Turbo Q5_0", "q5_0"),
+            ("Whisper Large-v3-Turbo Q8_0", "q8_0"),
+            ("Whisper Small", "small"),
+            ("Whisper Base", "base")
+        ]
 
-        # Check Whisper Large Turbo
-        q5_exists = os.path.exists(os.path.join(WHISPER_CPP_MODELS_DIR, "ggml-large-v3-turbo-q5_0.bin"))
-        st_whisper = "✅ Загружен (548 MB)" if q5_exists else "⚠️ Не загружен"
-        lbl_w = QLabel(st_whisper)
-        form_st.addRow("Whisper Turbo Q5_0:", lbl_w)
+        for title, q in models:
+            path = get_model_path(q)
+            exists = os.path.exists(path)
+            color = "#a6e3a1" if exists else "#f38ba8"
+            status = "Найден в RAM" if exists else "Не загружен"
+            lbl = QLabel(f"• {title}: <span style='color:{color}; font-weight:bold;'>{status}</span>")
+            vbox_info.addWidget(lbl)
 
-        layout.addWidget(grp_status)
+        layout.addWidget(grp_info)
 
         grp_paths = QGroupBox("Расположение файлов")
         form_p = QFormLayout(grp_paths)
@@ -367,6 +437,16 @@ class SettingsDialog(QDialog):
         self.chk_punct.setChecked(self.cfg.get("enable_punctuation", True))
         self.chk_hud.setChecked(self.cfg.get("enable_hud", True))
 
+        # Wake word values
+        self.chk_wakeword.setChecked(self.cfg.get("enable_wakeword", False))
+        ww_model = self.cfg.get("wakeword_model", "hey_jarvis")
+        idx_ww = self.combo_ww_model.findData(ww_model)
+        if idx_ww >= 0:
+            self.combo_ww_model.setCurrentIndex(idx_ww)
+        self.spin_ww_thresh.setValue(float(self.cfg.get("wakeword_threshold", 0.6)))
+        self.spin_ww_silence.setValue(float(self.cfg.get("wakeword_silence_duration", 0.8)))
+        self.chk_ww_beep.setChecked(self.cfg.get("wakeword_beep", True))
+
     def _save_and_apply(self):
         """Save form to config file and emit signal."""
         self._stop_mic_test()
@@ -378,7 +458,12 @@ class SettingsDialog(QDialog):
             "threads": self.spin_threads.value(),
             "enable_punctuation": self.chk_punct.isChecked(),
             "enable_hud": self.chk_hud.isChecked(),
-            "audio_device_id": self.combo_mic.currentData()
+            "audio_device_id": self.combo_mic.currentData(),
+            "enable_wakeword": self.chk_wakeword.isChecked(),
+            "wakeword_model": self.combo_ww_model.currentData(),
+            "wakeword_threshold": self.spin_ww_thresh.value(),
+            "wakeword_silence_duration": self.spin_ww_silence.value(),
+            "wakeword_beep": self.chk_ww_beep.isChecked()
         }
 
         self.cfg.update(new_cfg)

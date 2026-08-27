@@ -45,24 +45,17 @@ class VoiceTurboApp:
         self.flash_attn = self.cfg.get("flash_attn", True)
         self.enable_punctuation = self.cfg.get("enable_punctuation", True)
         self.enable_hud = self.cfg.get("enable_hud", True)
+        self.enable_wakeword = self.cfg.get("enable_wakeword", False)
+        self.wakeword_model = self.cfg.get("wakeword_model", "hey_jarvis")
+        self.wakeword_threshold = float(self.cfg.get("wakeword_threshold", 0.6))
+        self.wakeword_silence_duration = float(self.cfg.get("wakeword_silence_duration", 0.8))
+        self.wakeword_beep = self.cfg.get("wakeword_beep", True)
 
         self.current_session_id = None
         self.detected_lang_in_flight = None
 
         # Initialize signals
         self.signals = SignalHelper()
-
-        # Preload language detector for Whisper
-        self.detector.preload()
-        self.signals.toggle_signal.connect(self.toggle_recording)
-        self.signals.update_signal.connect(self.on_processing_complete)
-        self.signals.notify_signal.connect(self.show_notification)
-        self.signals.paste_signal.connect(self.do_paste)
-        self.signals.state_signal.connect(self.set_ui_state)
-        self.signals.amplitude_signal.connect(self._on_amplitude_signal)
-
-        # Floating HUD Overlay
-        self.hud = VoiceHUDWidget() if self.enable_hud else None
 
         # Engine components
         self.server_mgr = WhisperServerManager()
@@ -73,6 +66,27 @@ class VoiceTurboApp:
             enable_punctuation=self.enable_punctuation
         )
         self.detector = LanguageDetector()
+        try:
+            self.detector.preload()
+        except Exception as e:
+            logging.warning(f"Language detector preload: {e}")
+
+        # Wake word detector
+        from src.audio.wakeword import WakeWordDetector
+        self.wakeword_detector = WakeWordDetector(
+            model_name=self.wakeword_model,
+            threshold=self.wakeword_threshold
+        )
+
+        self.signals.toggle_signal.connect(self.toggle_recording)
+        self.signals.update_signal.connect(self.on_processing_complete)
+        self.signals.notify_signal.connect(self.show_notification)
+        self.signals.paste_signal.connect(self.do_paste)
+        self.signals.state_signal.connect(self.set_ui_state)
+        self.signals.amplitude_signal.connect(self._on_amplitude_signal)
+
+        # Floating HUD Overlay
+        self.hud = VoiceHUDWidget() if self.enable_hud else None
 
         # Streaming pipeline with dynamic engine dispatching
         self.pipeline = StreamingPipeline(
@@ -86,8 +100,13 @@ class VoiceTurboApp:
         self.recorder = AudioRecorder(
             on_chunk_ready=self._on_audio_chunk_ready,
             on_bg_lang_detect=self._on_bg_detect_lang,
-            on_amplitude=self.signals.amplitude_signal.emit
+            on_amplitude=self.signals.amplitude_signal.emit,
+            on_wakeword_detected=self._on_wakeword_triggered,
+            on_auto_silence=self._on_auto_silence_stop
         )
+
+        if self.enable_wakeword:
+            self.recorder.start_wakeword_listening(self.wakeword_detector)
 
         # UI System Tray
         self.tray_mgr = TrayManager(
@@ -98,6 +117,9 @@ class VoiceTurboApp:
             on_change_language=self.set_language,
             on_toggle_punctuation=self.toggle_punctuation,
             on_toggle_hud=self.toggle_hud,
+            on_toggle_wakeword=self.toggle_wakeword,
+            on_change_wakeword_model=self.set_wakeword_model,
+            get_available_wakewords=self.wakeword_detector.get_available_models,
             on_open_settings=self.open_settings,
             on_quit=self.quit_app
         )
@@ -106,7 +128,9 @@ class VoiceTurboApp:
             self.cpu_threads,
             self.target_language,
             self.enable_punctuation,
-            self.enable_hud
+            self.enable_hud,
+            self.enable_wakeword,
+            self.wakeword_model
         )
         self.tray_mgr.show()
 
@@ -123,19 +147,21 @@ class VoiceTurboApp:
             self.hud.set_amplitude(amp)
 
     def _transcribe_audio_chunk(self, chunk_frames: list, language: str) -> str:
-        """Route transcription to active engine (GigaAM or Whisper)."""
-        if self.model_quant == "gigaam_v2" and language in ("tr, en", "kk"):
-            if not self.server_mgr.ensure_running(
-                model_quant=self.model_quant,
-                cpu_threads=self.cpu_threads,
-                flash_attn=self.flash_attn
-            ):
-                logging.error("Failed to start Whisper server for non-Russian language.")
-            return self.http_client.send_audio(chunk_frames, language=language)
+        """Route transcription to active engine (GigaAM or Whisper fallback)."""
+        if self.model_quant == "gigaam_v2":
+            if language in ("tr", "en", "kk"):
+                # GigaAM is Russian-only; fallback to Whisper Large/Small
+                fallback_quant = "q5_0"
+                if not self.server_mgr.ensure_running(
+                    model_quant=fallback_quant,
+                    cpu_threads=self.cpu_threads,
+                    flash_attn=self.flash_attn
+                ):
+                    logging.error("Failed to start Whisper server for fallback language.")
+                return self.http_client.send_audio(chunk_frames, language=language)
+            return self.gigaam_engine.transcribe_frames(chunk_frames, language=language)
         else:
             return self.http_client.send_audio(chunk_frames, language=language)
-
-        return self.gigaam_engine.transcribe_frames(chunk_frames, language=language)
 
     def _resolve_current_language(self) -> str:
         """Resolve effective language code for active request."""
@@ -184,6 +210,27 @@ class VoiceTurboApp:
     def show_notification(self, title: str, message: str):
         self.tray_mgr.show_notification(title, message)
 
+    def _on_wakeword_triggered(self):
+        """Handle wake word event: play feedback, start recording with auto-silence."""
+        if self.recorder.is_recording:
+            return
+
+        logging.info("🎙️ [VoxTurboApp] Wake Word triggered from background listener!")
+        if self.wakeword_beep:
+            try:
+                # Play subtle system bell / audio pulse
+                print('\a', end='', flush=True)
+            except Exception:
+                pass
+
+        self.signals.toggle_signal.emit()
+
+    def _on_auto_silence_stop(self):
+        """Handle automatic completion on silence."""
+        if self.recorder.is_recording:
+            logging.info("🤫 [VoxTurboApp] Auto-silence stop triggered.")
+            self.signals.toggle_signal.emit()
+
     def toggle_recording(self):
         if not self.recorder.is_recording:
             self.start_recording()
@@ -213,7 +260,13 @@ class VoiceTurboApp:
         # For Whisper Large (q5_0, q8_0), use full_window mode (up to 28s) for maximum context;
         # for GigaAM and smaller models (small, base), use stream mode (pause-based 5-8s chunks).
         chunk_strategy = "full_window" if self.model_quant in ("q5_0", "q8_0") else "stream"
-        self.recorder.start(session_id, enable_auto_lang=enable_auto, chunk_strategy=chunk_strategy)
+        self.recorder.start(
+            session_id,
+            enable_auto_lang=enable_auto,
+            chunk_strategy=chunk_strategy,
+            enable_auto_silence=self.enable_wakeword,
+            silence_duration=self.wakeword_silence_duration
+        )
 
     def stop_recording(self):
         if not self.recorder.is_recording:
@@ -351,10 +404,51 @@ class VoiceTurboApp:
         status_str = "Enabled" if enabled else "Disabled"
         self.show_notification("VoxTurbo", f"Voice HUD: {status_str}")
 
+    def toggle_wakeword(self, enabled: bool):
+        self.enable_wakeword = enabled
+        self.cfg["enable_wakeword"] = enabled
+        save_user_config(self.cfg)
+
+        if enabled:
+            self.recorder.start_wakeword_listening(self.wakeword_detector)
+        else:
+            self.recorder.stop_wakeword_listening()
+
+        logging.info(f"Wake Word activation toggled: {enabled}")
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud,
+            self.enable_wakeword,
+            self.wakeword_model
+        )
+        status_str = f"Active ({self.wakeword_model})" if enabled else "Disabled"
+        self.show_notification("VoxTurbo", f"Wake Word: {status_str}")
+
+    def set_wakeword_model(self, model_name: str):
+        self.wakeword_model = model_name
+        self.cfg["wakeword_model"] = model_name
+        save_user_config(self.cfg)
+
+        self.wakeword_detector.reload(model_name, self.wakeword_threshold)
+        logging.info(f"Selected Wake Word model: {model_name}")
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud,
+            self.enable_wakeword,
+            self.wakeword_model
+        )
+        self.show_notification("VoxTurbo", f"Wake Word Model: {model_name}")
+
     def open_settings(self):
         """Open graphical preferences and settings dialog."""
         logging.info("[VoiceTurboApp] Opening preferences dialog...")
-        dlg = SettingsDialog()
+        dlg = SettingsDialog(detector=self.wakeword_detector)
         dlg.settings_saved.connect(self._on_settings_applied)
         dlg.exec_()
 
@@ -371,6 +465,17 @@ class VoiceTurboApp:
             self.toggle_punctuation(new_cfg["enable_punctuation"])
         if "enable_hud" in new_cfg and new_cfg["enable_hud"] != self.enable_hud:
             self.toggle_hud(new_cfg["enable_hud"])
+        if "wakeword_model" in new_cfg and new_cfg["wakeword_model"] != self.wakeword_model:
+            self.set_wakeword_model(new_cfg["wakeword_model"])
+        if "enable_wakeword" in new_cfg and new_cfg["enable_wakeword"] != self.enable_wakeword:
+            self.toggle_wakeword(new_cfg["enable_wakeword"])
+        if "wakeword_threshold" in new_cfg:
+            self.wakeword_threshold = float(new_cfg["wakeword_threshold"])
+            self.wakeword_detector.threshold = self.wakeword_threshold
+        if "wakeword_silence_duration" in new_cfg:
+            self.wakeword_silence_duration = float(new_cfg["wakeword_silence_duration"])
+        if "wakeword_beep" in new_cfg:
+            self.wakeword_beep = bool(new_cfg["wakeword_beep"])
 
     def quit_app(self):
         logging.info("Exiting VoxTurbo AI")

@@ -27,13 +27,19 @@
 4. **Hardware Voice Activity Detection (Silero VAD v5.1):**
    - Cuts background silence before passing audio to heavy transformer decoders.
 
-5. **In-Flight Language Detection:**
-   - Detects spoken language in the background within the first 1.8s of speech (Russian, Kazakh, English, auto).
+5. **In-Flight Language Detection & Fallback Routing:**
+   - Detects spoken language on the fly (Russian, Turkish 🇹🇷, Kazakh 🇰🇿, English 🇬🇧).
+   - Intelligently routes Russian to GigaAM (~0.5x RTF) and foreign languages to Whisper Large-v3-Turbo resident daemon.
 
-6. **Seamless Desktop Integration:**
+6. **Hands-Free Voice Wake Word (openWakeWord ONNX):**
+   - Optional keyword activation (*Hey Jarvis*, *Alexa*, *Okay Google*, *Hey Siri*) with CPU load < 1%.
+   - Auto-finish speech dictation on voice pauses ($\ge 0.8$s).
+   - Custom `.onnx` models directory for any arbitrary user keywords.
+
+7. **Seamless Desktop Integration:**
    - **Global Hotkey:** `Super + Space` (`Win + Space`) toggles recording from anywhere in the OS.
    - **Auto-Paste:** Immediately types or injects recognized text into the active cursor position (X11 & Wayland).
-   - **System Tray:** Rich menu with color-coded status indicators (🟢 Ready / 🔴 Recording / 🟡 Processing).
+   - **System Tray & Settings:** Rich menu and full-featured preferences dialog with audio VU-meter.
 
 ---
 
