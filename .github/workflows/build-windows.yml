@@ -46,6 +46,9 @@ jobs:
           Invoke-WebRequest -Uri $whisperZip -OutFile $tempZip
           Expand-Archive -Path $tempZip -DestinationPath bin -Force
           Remove-Item $tempZip -Force
+          if (Test-Path "bin\Release") {
+              Copy-Item -Path "bin\Release\*" -Destination "bin" -Recurse -Force
+          }
           Get-ChildItem -Path bin
 
       - name: Build Standalone Executable with PyInstaller

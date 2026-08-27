@@ -14,8 +14,10 @@ PROJECT_DIR = os.path.abspath(SPECPATH)
 # Collect required asset files (excluding large model weights)
 datas = [
     (os.path.join(PROJECT_DIR, 'src'), 'src'),
-    (os.path.join(PROJECT_DIR, 'models', 'wakewords'), 'models/wakewords'),
 ]
+wakewords_path = os.path.join(PROJECT_DIR, 'models', 'wakewords')
+if os.path.exists(wakewords_path):
+    datas.append((wakewords_path, 'models/wakewords'))
 
 # Collect pre-built binaries if present in bin/
 binaries = []
