@@ -22,6 +22,7 @@ from src.system.hotkey import HotkeyManager
 from src.system.clipboard import PasteManager
 from src.ui.signals import SignalHelper
 from src.ui.tray import TrayManager
+from src.ui.hud import VoiceHUDWidget
 
 
 class VoiceTurboApp:
@@ -41,6 +42,8 @@ class VoiceTurboApp:
         self.cpu_threads = self.cfg.get("threads", 4)
         self.target_language = self.cfg.get("language", "auto")
         self.flash_attn = self.cfg.get("flash_attn", True)
+        self.enable_punctuation = self.cfg.get("enable_punctuation", True)
+        self.enable_hud = self.cfg.get("enable_hud", True)
 
         self.current_session_id = None
         self.detected_lang_in_flight = None
@@ -52,11 +55,19 @@ class VoiceTurboApp:
         self.signals.notify_signal.connect(self.show_notification)
         self.signals.paste_signal.connect(self.do_paste)
         self.signals.state_signal.connect(self.set_ui_state)
+        self.signals.amplitude_signal.connect(self._on_amplitude_signal)
+
+        # Floating HUD Overlay
+        self.hud = VoiceHUDWidget() if self.enable_hud else None
 
         # Engine components
         self.server_mgr = WhisperServerManager()
         self.http_client = WhisperHttpClient()
-        self.gigaam_engine = GigaAMEngine(model_name="v2_ctc", cpu_threads=self.cpu_threads)
+        self.gigaam_engine = GigaAMEngine(
+            model_name="v2_ctc",
+            cpu_threads=self.cpu_threads,
+            enable_punctuation=self.enable_punctuation
+        )
         self.detector = LanguageDetector()
 
         # Streaming pipeline with dynamic engine dispatching
@@ -67,10 +78,11 @@ class VoiceTurboApp:
             get_current_language=self._resolve_current_language
         )
 
-        # Audio recorder
+        # Audio recorder with live amplitude feedback
         self.recorder = AudioRecorder(
             on_chunk_ready=self._on_audio_chunk_ready,
-            on_bg_lang_detect=self._on_bg_detect_lang
+            on_bg_lang_detect=self._on_bg_detect_lang,
+            on_amplitude=self.signals.amplitude_signal.emit
         )
 
         # UI System Tray
@@ -80,9 +92,17 @@ class VoiceTurboApp:
             on_change_quant=self.set_quant,
             on_change_threads=self.set_threads,
             on_change_language=self.set_language,
+            on_toggle_punctuation=self.toggle_punctuation,
+            on_toggle_hud=self.toggle_hud,
             on_quit=self.quit_app
         )
-        self.tray_mgr.update_checks(self.model_quant, self.cpu_threads, self.target_language)
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
         self.tray_mgr.show()
 
         # Global hotkey Super+Space
@@ -92,10 +112,15 @@ class VoiceTurboApp:
         # Background backend warmup
         threading.Thread(target=self._init_backend, daemon=True, name="TurboInitThread").start()
 
+    def _on_amplitude_signal(self, amp: float):
+        """Pass live amplitude to HUD overlay."""
+        if self.hud and self.enable_hud:
+            self.hud.set_amplitude(amp)
+
     def _transcribe_audio_chunk(self, chunk_frames: list, language: str) -> str:
         """Route transcription to active engine (GigaAM or Whisper)."""
         if self.model_quant == "gigaam_v2":
-            return self.gigaam_engine.transcribe_frames(chunk_frames)
+            return self.gigaam_engine.transcribe_frames(chunk_frames, language=language)
         else:
             return self.http_client.send_audio(chunk_frames, language=language)
 
@@ -139,6 +164,9 @@ class VoiceTurboApp:
             cpu_threads=self.cpu_threads,
             language=self.target_language
         )
+        if self.hud and self.enable_hud:
+            model_label = "GigaAM v2" if self.model_quant == "gigaam_v2" else f"Whisper {self.model_quant.upper()}"
+            self.hud.set_state(state_name, model_label=model_label, detail=extra)
 
     def show_notification(self, title: str, message: str):
         self.tray_mgr.show_notification(title, message)
@@ -204,8 +232,17 @@ class VoiceTurboApp:
 
     def on_processing_complete(self, text: str, success: bool):
         self.tray_mgr.update_last_text(text, success, self.model_quant)
-        self.tray_mgr.update_checks(self.model_quant, self.cpu_threads, self.target_language)
-        self.signals.state_signal.emit("idle", "")
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
+        if success:
+            self.signals.state_signal.emit("success", text)
+        else:
+            self.signals.state_signal.emit("idle", "")
 
     def set_quant(self, quant_type: str):
         self.model_quant = quant_type
@@ -213,7 +250,13 @@ class VoiceTurboApp:
         save_user_config(self.cfg)
 
         logging.info(f"Selected model: {quant_type}")
-        self.tray_mgr.update_checks(self.model_quant, self.cpu_threads, self.target_language)
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
         label = "GigaAM v2" if quant_type == "gigaam_v2" else f"Whisper {quant_type.upper()}"
         self.show_notification("VoxTurbo", f"Active Engine: {label}")
         threading.Thread(target=self._init_backend, daemon=True, name="EngineSwitchThread").start()
@@ -224,7 +267,14 @@ class VoiceTurboApp:
         save_user_config(self.cfg)
 
         logging.info(f"Selected CPU threads: {thread_count}")
-        self.tray_mgr.update_checks(self.model_quant, self.cpu_threads, self.target_language)
+        self.gigaam_engine.cpu_threads = thread_count
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
         self.show_notification("VoxTurbo", f"CPU Threads: {thread_count}")
         threading.Thread(target=self._init_backend, daemon=True, name="ThreadSwitchThread").start()
 
@@ -234,7 +284,13 @@ class VoiceTurboApp:
         save_user_config(self.cfg)
 
         logging.info(f"Selected language: {lang_code.upper()}")
-        self.tray_mgr.update_checks(self.model_quant, self.cpu_threads, self.target_language)
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
         labels = {
             "auto": "⚡ Auto-detection",
             "ru": "🇷🇺 Russian",
@@ -242,6 +298,44 @@ class VoiceTurboApp:
             "en": "🇬🇧 English"
         }
         self.show_notification("VoxTurbo", f"Language: {labels.get(lang_code, lang_code)}")
+
+    def toggle_punctuation(self, enabled: bool):
+        self.enable_punctuation = enabled
+        self.cfg["enable_punctuation"] = enabled
+        self.gigaam_engine.enable_punctuation = enabled
+        save_user_config(self.cfg)
+
+        logging.info(f"Smart Punctuation toggled: {enabled}")
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
+        status_str = "Enabled" if enabled else "Disabled"
+        self.show_notification("VoxTurbo", f"Smart Punctuation: {status_str}")
+
+    def toggle_hud(self, enabled: bool):
+        self.enable_hud = enabled
+        self.cfg["enable_hud"] = enabled
+        save_user_config(self.cfg)
+
+        if enabled and self.hud is None:
+            self.hud = VoiceHUDWidget()
+        elif not enabled and self.hud is not None:
+            self.hud.hide()
+
+        logging.info(f"Floating Voice HUD toggled: {enabled}")
+        self.tray_mgr.update_checks(
+            self.model_quant,
+            self.cpu_threads,
+            self.target_language,
+            self.enable_punctuation,
+            self.enable_hud
+        )
+        status_str = "Enabled" if enabled else "Disabled"
+        self.show_notification("VoxTurbo", f"Voice HUD: {status_str}")
 
     def quit_app(self):
         logging.info("Exiting VoxTurbo AI")
