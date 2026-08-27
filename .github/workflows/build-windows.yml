@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path bin -Force | Out-Null
-          $whisperZip = "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip"
+          $whisperZip = "https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-x64.zip"
           $tempZip = Join-Path $env:TEMP "whisper-bin.zip"
           Invoke-WebRequest -Uri $whisperZip -OutFile $tempZip
           Expand-Archive -Path $tempZip -DestinationPath bin -Force

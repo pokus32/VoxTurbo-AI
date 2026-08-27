@@ -61,7 +61,7 @@ if (-not (Test-Path $binDir)) {
 $whisperServerExe = Join-Path $binDir "whisper-server.exe"
 if (-not (Test-Path $whisperServerExe)) {
     Write-Host "[*] Загрузка оптимизированного бинарника whisper-server.exe (Windows AVX2)..." -ForegroundColor Yellow
-    $whisperZipUrl = "https://github.com/ggerganov/whisper.cpp/releases/download/v1.7.4/whisper-bin-x64.zip"
+    $whisperZipUrl = "https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-x64.zip"
     $tempZip = Join-Path $env:TEMP "whisper-bin.zip"
     Invoke-WebRequest -Uri $whisperZipUrl -OutFile $tempZip
     Expand-Archive -Path $tempZip -DestinationPath $binDir -Force
