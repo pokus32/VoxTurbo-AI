@@ -14,6 +14,7 @@ class AudioRecorder:
         self,
         on_chunk_ready: Callable[[str, list, bool], None],
         on_bg_lang_detect: Optional[Callable[[list], None]] = None,
+        on_amplitude: Optional[Callable[[float], None]] = None,
         rate: int = 16000,
         channels: int = 1,
         frames_per_buffer: int = 1024,
@@ -21,6 +22,7 @@ class AudioRecorder:
     ):
         self.on_chunk_ready = on_chunk_ready
         self.on_bg_lang_detect = on_bg_lang_detect
+        self.on_amplitude = on_amplitude
         self.rate = rate
         self.channels = channels
         self.frames_per_buffer = frames_per_buffer
@@ -90,6 +92,10 @@ class AudioRecorder:
 
                 frame_arr = np.frombuffer(data, dtype=np.int16)
                 rms = np.sqrt(np.mean(frame_arr.astype(np.float32) ** 2))
+
+                if self.on_amplitude:
+                    norm_amp = min(1.0, max(0.0, (rms - 100.0) / 2500.0))
+                    self.on_amplitude(float(norm_amp))
 
                 if rms < self.silence_threshold:
                     consecutive_silence_frames += 1

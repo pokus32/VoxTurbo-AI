@@ -11,3 +11,5 @@ class SignalHelper(QObject):
     notify_signal = pyqtSignal(str, str)
     paste_signal = pyqtSignal(str)
     state_signal = pyqtSignal(str, str)
+    amplitude_signal = pyqtSignal(float)
+
