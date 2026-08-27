@@ -11,6 +11,7 @@ WHISPER_CPP_DIR = os.path.join(APP_DIR, 'whisper.cpp')
 WHISPER_CPP_SERVER_BIN = os.path.join(WHISPER_CPP_DIR, 'build', 'bin', 'whisper-server')
 WHISPER_CPP_MODELS_DIR = os.path.join(WHISPER_CPP_DIR, 'models')
 WHISPER_CPP_VAD_MODEL = os.path.join(WHISPER_CPP_MODELS_DIR, 'ggml-silero-v5.1.2.bin')
+WAKEWORDS_DIR = os.path.join(APP_DIR, 'models', 'wakewords')
 TURBO_PORT = 8091
 
 # Standard XDG paths for user configuration and state data
@@ -25,13 +26,18 @@ LOG_FILE = os.path.join(USER_STATE_DIR, 'voxturbo.log')
 LAST_INPUT_FILE = os.path.join(USER_STATE_DIR, 'last_voice_input.txt')
 
 DEFAULT_CONFIG = {
-    "engine": "gigaam",         # "gigaam" or "whisper"
-    "model_quant": "gigaam_v2", # "gigaam_v2", "q5_0", "q8_0", "small", "base"
-    "threads": 4,               # CPU threads (e.g. 4 or 6)
-    "language": "auto",         # "auto", "ru", "kk", "en", "tr"
+    "engine": "gigaam",                 # "gigaam" or "whisper"
+    "model_quant": "gigaam_v2",         # "gigaam_v2", "q5_0", "q8_0", "small", "base"
+    "threads": 4,                       # CPU threads (e.g. 4 or 6)
+    "language": "auto",                 # "auto", "ru", "kk", "en", "tr"
     "flash_attn": True,
-    "enable_punctuation": True, # Silero TE neural post-processing for GigaAM
-    "enable_hud": True          # Modern floating voice HUD overlay
+    "enable_punctuation": True,         # Silero TE neural post-processing for GigaAM
+    "enable_hud": True,                 # Modern floating voice HUD overlay
+    "enable_wakeword": False,           # Voice wake word activation
+    "wakeword_model": "hey_jarvis",     # "hey_jarvis", "alexa", "ok_google", or custom onnx
+    "wakeword_threshold": 0.6,          # Wake word sensitivity threshold (0.1 - 1.0)
+    "wakeword_silence_duration": 0.8,   # Auto-finish on silence duration in seconds
+    "wakeword_beep": True               # Play audio/bell signal on wake word trigger
 }
 
 
