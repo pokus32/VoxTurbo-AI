@@ -14,7 +14,7 @@
 
 1. **Dual State-of-the-Art Engines:**
    - **GigaAM v2 (Conformer-CTC):** SOTA Russian speech recognition running in **~0.5x Real-Time Factor (RTF)** directly in Python memory.
-   - **Whisper Large-v3-Turbo (C++ daemon):** Compiled with **AVX2**, **FMA**, and **OpenMP** instructions for multi-language accuracy and deep semantic context.
+   - **Whisper Large-v3-Turbo (C++ daemon):** Compiled with **AVX2**, **FMA**, and **OpenMP** instructions for multi-language accuracy and deep semantic context, supporting Russian, Kazakh, English, and Turkish.
 
 2. **Zero-Disk Streaming & Resident Memory:**
    - Preloads neural weights into RAM: **0.0s startup latency** per recording.

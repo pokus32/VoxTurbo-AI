@@ -110,6 +110,10 @@ class TrayManager:
         self.action_lang_en = QAction("🇬🇧 English (en)", self.menu, checkable=True)
         self.action_lang_en.triggered.connect(lambda: self.on_change_language("en"))
         self.menu_lang.addAction(self.action_lang_en)
+
+        self.action_lang_tr = QAction("🇹🇷 Turkish (tr / Türkçe)", self.menu, checkable=True)
+        self.action_lang_tr.triggered.connect(lambda: self.on_change_language("tr"))
+        self.menu_lang.addAction(self.action_lang_tr)
         self.menu.addMenu(self.menu_lang)
 
         self.menu.addSeparator()
@@ -192,6 +196,7 @@ class TrayManager:
         self.action_lang_ru.setChecked(language == "ru")
         self.action_lang_kk.setChecked(language == "kk")
         self.action_lang_en.setChecked(language == "en")
+        self.action_lang_tr.setChecked(language == "tr")
 
         self.action_punct.setChecked(bool(enable_punctuation))
         self.action_hud.setChecked(bool(enable_hud))

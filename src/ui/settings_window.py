@@ -217,6 +217,7 @@ class SettingsDialog(QDialog):
         self.combo_lang.addItem("🇷🇺 Русский (ru)", "ru")
         self.combo_lang.addItem("🇰🇿 Казахский (kk)", "kk")
         self.combo_lang.addItem("🇬🇧 Английский (en)", "en")
+        self.combo_lang.addItem("🇹🇷 Турецкий (tr / Türkçe)", "tr")
         form_eng.addRow("Язык диктовки:", self.combo_lang)
 
         self.spin_threads = QSpinBox()

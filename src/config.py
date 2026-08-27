@@ -28,7 +28,7 @@ DEFAULT_CONFIG = {
     "engine": "gigaam",         # "gigaam" or "whisper"
     "model_quant": "gigaam_v2", # "gigaam_v2", "q5_0", "q8_0", "small", "base"
     "threads": 4,               # CPU threads (e.g. 4 or 6)
-    "language": "auto",         # "auto", "ru", "kk", "en"
+    "language": "auto",         # "auto", "ru", "kk", "en", "tr"
     "flash_attn": True,
     "enable_punctuation": True, # Silero TE neural post-processing for GigaAM
     "enable_hud": True          # Modern floating voice HUD overlay

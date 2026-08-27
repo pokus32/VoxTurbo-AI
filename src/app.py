@@ -51,6 +51,9 @@ class VoiceTurboApp:
 
         # Initialize signals
         self.signals = SignalHelper()
+
+        # Preload language detector for Whisper
+        self.detector.preload()
         self.signals.toggle_signal.connect(self.toggle_recording)
         self.signals.update_signal.connect(self.on_processing_complete)
         self.signals.notify_signal.connect(self.show_notification)
@@ -121,10 +124,18 @@ class VoiceTurboApp:
 
     def _transcribe_audio_chunk(self, chunk_frames: list, language: str) -> str:
         """Route transcription to active engine (GigaAM or Whisper)."""
-        if self.model_quant == "gigaam_v2":
-            return self.gigaam_engine.transcribe_frames(chunk_frames, language=language)
+        if self.model_quant == "gigaam_v2" and language in ("tr, en", "kk"):
+            if not self.server_mgr.ensure_running(
+                model_quant=self.model_quant,
+                cpu_threads=self.cpu_threads,
+                flash_attn=self.flash_attn
+            ):
+                logging.error("Failed to start Whisper server for non-Russian language.")
+            return self.http_client.send_audio(chunk_frames, language=language)
         else:
             return self.http_client.send_audio(chunk_frames, language=language)
+
+        return self.gigaam_engine.transcribe_frames(chunk_frames, language=language)
 
     def _resolve_current_language(self) -> str:
         """Resolve effective language code for active request."""
@@ -198,7 +209,7 @@ class VoiceTurboApp:
         self.pipeline.start_session(session_id)
 
         # Start audio capture
-        enable_auto = (self.target_language == "auto" and self.model_quant != "gigaam_v2")
+        enable_auto = (self.target_language == "auto")
         # For Whisper Large (q5_0, q8_0), use full_window mode (up to 28s) for maximum context;
         # for GigaAM and smaller models (small, base), use stream mode (pause-based 5-8s chunks).
         chunk_strategy = "full_window" if self.model_quant in ("q5_0", "q8_0") else "stream"
@@ -297,7 +308,8 @@ class VoiceTurboApp:
             "auto": "⚡ Auto-detection",
             "ru": "🇷🇺 Russian",
             "kk": "🇰🇿 Kazakh",
-            "en": "🇬🇧 English"
+            "en": "🇬🇧 English",
+            "tr": "🇹🇷 Turkish"
         }
         self.show_notification("VoxTurbo", f"Language: {labels.get(lang_code, lang_code)}")
 
