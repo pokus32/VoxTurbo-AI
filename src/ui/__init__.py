@@ -2,5 +2,6 @@
 from .signals import SignalHelper
 from .icons import create_tray_icon
 from .tray import TrayManager
+from .settings_window import SettingsDialog
 
-__all__ = ["SignalHelper", "create_tray_icon", "TrayManager"]
+__all__ = ["SignalHelper", "create_tray_icon", "TrayManager", "SettingsDialog"]
