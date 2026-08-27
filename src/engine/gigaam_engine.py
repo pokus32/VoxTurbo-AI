@@ -17,39 +17,53 @@ def _patched_torch_load(*args, **kwargs):
 torch.load = _patched_torch_load
 
 
-class GigaAMEngine:
-    """Local resident GigaAM v2 CTC engine for fast CPU inference in RAM."""
+from src.engine.punctuator import SileroPunctuator
 
-    def __init__(self, model_name: str = "v2_ctc", cpu_threads: int = 4):
+
+class GigaAMEngine:
+    """Local resident GigaAM v2 CTC engine with neural punctuation in RAM."""
+
+    def __init__(
+        self,
+        model_name: str = "v2_ctc",
+        cpu_threads: int = 4,
+        enable_punctuation: bool = True
+    ):
         self.model_name = model_name
         self.cpu_threads = cpu_threads
+        self.enable_punctuation = enable_punctuation
         self._model = None
         self._is_ready = False
+        self.punctuator = SileroPunctuator()
 
     @property
     def is_ready(self) -> bool:
         return self._is_ready
 
     def preload(self):
-        """Preload GigaAM model weights into RAM."""
-        if self._model is not None:
-            return
+        """Preload GigaAM model weights and Silero punctuator into RAM."""
+        if self._model is None:
+            logging.info(f"[GigaAMEngine] Loading GigaAM model ({self.model_name}) into RAM...")
+            t0 = time.time()
+            try:
+                import gigaam
 
-        logging.info(f"[GigaAMEngine] Loading GigaAM model ({self.model_name}) into RAM...")
-        t0 = time.time()
-        try:
-            import gigaam
+                torch.set_num_threads(self.cpu_threads)
+                self._model = gigaam.load_model(self.model_name)
+                self._is_ready = True
+                logging.info(f"✅ GigaAM ({self.model_name}) loaded into RAM in {time.time()-t0:.2f}s")
+            except Exception as e:
+                logging.error(f"[GigaAMEngine] Failed to load GigaAM model: {e}", exc_info=True)
+                self._is_ready = False
 
-            torch.set_num_threads(self.cpu_threads)
-            self._model = gigaam.load_model(self.model_name)
-            self._is_ready = True
-            logging.info(f"✅ GigaAM ({self.model_name}) loaded into RAM in {time.time()-t0:.2f}s")
-        except Exception as e:
-            logging.error(f"[GigaAMEngine] Failed to load GigaAM model: {e}", exc_info=True)
-            self._is_ready = False
+        if self.enable_punctuation:
+            try:
+                self.punctuator.preload()
+            except Exception as e:
+                logging.warning(f"[GigaAMEngine] Failed to preload punctuator: {e}")
 
-    def transcribe_frames(self, frames_list: list) -> str:
-        """Direct zero-disk in-memory inference."""
+    def transcribe_frames(self, frames_list: list, language: str = "ru") -> str:
+        """Direct zero-disk in-memory inference with optional neural punctuation."""
         if not frames_list:
             return ""
 
@@ -75,8 +89,12 @@ class GigaAMEngine:
 
             text = raw_text.strip()
             if text:
-                # Basic formatting: capitalize first letter
-                text = text[0].upper() + text[1:]
+                if self.enable_punctuation and self.punctuator.is_ready:
+                    # Neural punctuation & capitalization
+                    text = self.punctuator.punctuate(text, lang=language if language in ("ru", "en", "de", "es") else "ru")
+                else:
+                    # Basic capitalization fallback
+                    text = text[0].upper() + text[1:]
 
             elapsed = time.time() - t0
             rtf = elapsed / dur_audio if dur_audio > 0 else 0
@@ -86,3 +104,4 @@ class GigaAMEngine:
         except Exception as e:
             logging.error(f"[GigaAMEngine] Inference error: {e}", exc_info=True)
             return ""
+
