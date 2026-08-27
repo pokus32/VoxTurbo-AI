@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VoxTurbo AI
+Comment=Ultra-fast system-wide voice input assistant powered by GigaAM & Whisper Large-v3-Turbo
+Exec=voxturbo
+Icon=audio-input-microphone
+Terminal=false
+Categories=AudioVideo;Audio;Utility;
+Keywords=voice;speech;whisper;turbo;transcribe;gigaam;ai;dictation;voxturbo;
+StartupNotify=false
