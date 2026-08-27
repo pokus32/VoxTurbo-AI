@@ -23,6 +23,7 @@ from src.system.clipboard import PasteManager
 from src.ui.signals import SignalHelper
 from src.ui.tray import TrayManager
 from src.ui.hud import VoiceHUDWidget
+from src.ui.settings_window import SettingsDialog
 
 
 class VoiceTurboApp:
@@ -94,6 +95,7 @@ class VoiceTurboApp:
             on_change_language=self.set_language,
             on_toggle_punctuation=self.toggle_punctuation,
             on_toggle_hud=self.toggle_hud,
+            on_open_settings=self.open_settings,
             on_quit=self.quit_app
         )
         self.tray_mgr.update_checks(
@@ -336,6 +338,27 @@ class VoiceTurboApp:
         )
         status_str = "Enabled" if enabled else "Disabled"
         self.show_notification("VoxTurbo", f"Voice HUD: {status_str}")
+
+    def open_settings(self):
+        """Open graphical preferences and settings dialog."""
+        logging.info("[VoiceTurboApp] Opening preferences dialog...")
+        dlg = SettingsDialog()
+        dlg.settings_saved.connect(self._on_settings_applied)
+        dlg.exec_()
+
+    def _on_settings_applied(self, new_cfg: dict):
+        """Apply newly saved settings dynamically."""
+        logging.info(f"[VoiceTurboApp] Applying new settings: {new_cfg}")
+        if "model_quant" in new_cfg and new_cfg["model_quant"] != self.model_quant:
+            self.set_quant(new_cfg["model_quant"])
+        if "threads" in new_cfg and new_cfg["threads"] != self.cpu_threads:
+            self.set_threads(new_cfg["threads"])
+        if "language" in new_cfg and new_cfg["language"] != self.target_language:
+            self.set_language(new_cfg["language"])
+        if "enable_punctuation" in new_cfg and new_cfg["enable_punctuation"] != self.enable_punctuation:
+            self.toggle_punctuation(new_cfg["enable_punctuation"])
+        if "enable_hud" in new_cfg and new_cfg["enable_hud"] != self.enable_hud:
+            self.toggle_hud(new_cfg["enable_hud"])
 
     def quit_app(self):
         logging.info("Exiting VoxTurbo AI")

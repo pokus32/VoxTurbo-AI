@@ -17,6 +17,7 @@ class TrayManager:
         on_change_language: Callable[[str], None],
         on_toggle_punctuation: Optional[Callable[[bool], None]] = None,
         on_toggle_hud: Optional[Callable[[bool], None]] = None,
+        on_open_settings: Optional[Callable[[], None]] = None,
         on_quit: Optional[Callable[[], None]] = None,
     ):
         self.parent_app = parent_app
@@ -26,6 +27,7 @@ class TrayManager:
         self.on_change_language = on_change_language
         self.on_toggle_punctuation = on_toggle_punctuation
         self.on_toggle_hud = on_toggle_hud
+        self.on_open_settings = on_open_settings
         self.on_quit = on_quit or (lambda: None)
 
         # Status color themes
@@ -136,6 +138,11 @@ class TrayManager:
         self.menu.addAction(self.action_hint)
 
         self.menu.addSeparator()
+
+        if self.on_open_settings:
+            action_settings = QAction("⚙️ Настройки...", self.menu)
+            action_settings.triggered.connect(self.on_open_settings)
+            self.menu.addAction(action_settings)
 
         action_quit = QAction("❌ Quit VoxTurbo AI", self.menu)
         action_quit.triggered.connect(self.on_quit)
