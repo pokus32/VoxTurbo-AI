@@ -67,6 +67,16 @@ The installer will:
 
 ---
 
+## 📖 User Guides (Руководства пользователя)
+
+Choose your language for the step-by-step user manual:
+* 🇷🇺 **[Русский — Руководство пользователя](file:///home/user/dev/antigravity-voice-turbo/USER_GUIDE.md)**
+* 🇬🇧 **[English — User Guide](file:///home/user/dev/antigravity-voice-turbo/USER_GUIDE_EN.md)**
+* 🇹🇷 **[Türkçe — Kullanıcı Kılavuzu](file:///home/user/dev/antigravity-voice-turbo/USER_GUIDE_TR.md)**
+* 🇰🇿 **[Қазақша — Пайдаланушы нұсқаулығы](file:///home/user/dev/antigravity-voice-turbo/USER_GUIDE_KK.md)**
+
+---
+
 ## 🎮 Usage
 
 * **Desktop Application Menu:** Open **Sound & Video $\rightarrow$ VoxTurbo AI**
