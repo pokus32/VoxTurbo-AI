@@ -331,31 +331,60 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_models_tab(self):
-        """Installed whisper and neural models information."""
+        """Dynamic model manager with download / delete actions and live progress."""
+        from src.engine.model_downloader import (
+            MODELS_CATALOG,
+            is_model_installed,
+            ModelDownloadWorker,
+        )
+
         layout = QVBoxLayout(self.tab_models)
 
-        grp_info = QGroupBox("Статус нейросетевых весов")
-        vbox_info = QVBoxLayout(grp_info)
+        grp_info = QGroupBox("Управление языковыми моделями")
+        self.vbox_models = QVBoxLayout(grp_info)
 
-        lbl_giga = QLabel("⚡ GigaAM v2 Conformer (PyTorch RAM): <b style='color:#a6e3a1;'>Встроен</b> (~0.5x RTF)")
-        vbox_info.addWidget(lbl_giga)
+        self.model_rows = {}
+        self.active_downloader = None
 
-        models = [
-            ("Whisper Large-v3-Turbo Q5_0", "q5_0"),
-            ("Whisper Large-v3-Turbo Q8_0", "q8_0"),
-            ("Whisper Small", "small"),
-            ("Whisper Base", "base")
-        ]
+        for key, info in MODELS_CATALOG.items():
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 4, 0, 4)
 
-        for title, q in models:
-            path = get_model_path(q)
-            exists = os.path.exists(path)
-            color = "#a6e3a1" if exists else "#f38ba8"
-            status = "Найден в RAM" if exists else "Не загружен"
-            lbl = QLabel(f"• {title}: <span style='color:{color}; font-weight:bold;'>{status}</span>")
-            vbox_info.addWidget(lbl)
+            name_lbl = QLabel(f"<b>{info['name']}</b> (~{info['size_mb']} МБ)")
+            name_lbl.setStyleSheet("color: #cdd6f4;")
+            row_layout.addWidget(name_lbl, 1)
+
+            status_lbl = QLabel()
+            status_lbl.setObjectName(f"status_{key}")
+            row_layout.addWidget(status_lbl)
+
+            btn_action = QPushButton()
+            btn_action.setObjectName(f"btn_{key}")
+            row_layout.addWidget(btn_action)
+
+            self.model_rows[key] = {
+                "widget": row_widget,
+                "status_lbl": status_lbl,
+                "btn_action": btn_action,
+                "info": info
+            }
+
+            self.vbox_models.addWidget(row_widget)
+            self._update_model_row_state(key)
 
         layout.addWidget(grp_info)
+
+        # Global download progress bar in models tab
+        self.model_progress = QProgressBar()
+        self.model_progress.setRange(0, 100)
+        self.model_progress.setValue(0)
+        self.model_progress.hide()
+        layout.addWidget(self.model_progress)
+
+        self.lbl_download_status = QLabel("")
+        self.lbl_download_status.setStyleSheet("color: #fab387; font-size: 11px;")
+        layout.addWidget(self.lbl_download_status)
 
         grp_paths = QGroupBox("Расположение файлов")
         form_p = QFormLayout(grp_paths)
@@ -363,8 +392,105 @@ class SettingsDialog(QDialog):
         lbl_cfg_path.setStyleSheet("color: #89b4fa; font-size: 11px;")
         form_p.addRow("Конфигурация:", lbl_cfg_path)
 
+        lbl_models_path = QLabel(WHISPER_CPP_MODELS_DIR)
+        lbl_models_path.setStyleSheet("color: #89b4fa; font-size: 11px;")
+        form_p.addRow("Папка моделей:", lbl_models_path)
+
         layout.addWidget(grp_paths)
         layout.addStretch()
+
+    def _update_model_row_state(self, key: str):
+        """Update single model row button and status label."""
+        from src.engine.model_downloader import is_model_installed
+        row = self.model_rows.get(key)
+        if not row:
+            return
+
+        installed = is_model_installed(key)
+        if installed:
+            row["status_lbl"].setText("✅ Установлена")
+            row["status_lbl"].setStyleSheet("color: #a6e3a1; font-weight: bold;")
+            row["btn_action"].setText("🗑️ Удалить")
+            row["btn_action"].setStyleSheet("background-color: #313244; color: #f38ba8;")
+            row["btn_action"].setEnabled(True)
+            try:
+                row["btn_action"].clicked.disconnect()
+            except Exception:
+                pass
+            row["btn_action"].clicked.connect(lambda checked, k=key: self._delete_model(k))
+        else:
+            row["status_lbl"].setText("❌ Не скачана")
+            row["status_lbl"].setStyleSheet("color: #6c7086;")
+            row["btn_action"].setText(f"⬇️ Скачать")
+            row["btn_action"].setStyleSheet("background-color: #89b4fa; color: #11111b;")
+            row["btn_action"].setEnabled(True)
+            try:
+                row["btn_action"].clicked.disconnect()
+            except Exception:
+                pass
+            row["btn_action"].clicked.connect(lambda checked, k=key: self._download_model(k))
+
+    def _download_model(self, key: str):
+        """Start downloading requested model."""
+        if self.active_downloader and self.active_downloader.isRunning():
+            QMessageBox.information(self, "Загрузка", "В данный момент уже загружается другая модель.")
+            return
+
+        from src.engine.model_downloader import ModelDownloadWorker, MODELS_CATALOG
+        info = MODELS_CATALOG.get(key)
+        if not info:
+            return
+
+        row = self.model_rows.get(key)
+        if row:
+            row["btn_action"].setEnabled(False)
+            row["status_lbl"].setText("⏳ Загрузка...")
+            row["status_lbl"].setStyleSheet("color: #fab387;")
+
+        self.model_progress.show()
+        self.lbl_download_status.setText(f"Подключение для скачивания {info['name']}...")
+
+        self.active_downloader = ModelDownloadWorker(key, self)
+        self.active_downloader.progress_changed.connect(
+            lambda pct, dl, tot: self._on_model_progress(key, pct, dl, tot)
+        )
+        self.active_downloader.download_finished.connect(self._on_model_finished)
+        self.active_downloader.start()
+
+    def _on_model_progress(self, key: str, percent: int, dl_mb: float, total_mb: float):
+        self.model_progress.setValue(percent)
+        self.lbl_download_status.setText(f"Загрузка {key}: {dl_mb:.1f} МБ / {total_mb:.1f} МБ ({percent}%)")
+
+    def _on_model_finished(self, key: str, success: bool, error: str):
+        self.model_progress.hide()
+        if success:
+            self.lbl_download_status.setText(f"✅ Модель {key} успешно загружена!")
+            self.lbl_download_status.setStyleSheet("color: #a6e3a1;")
+        else:
+            self.lbl_download_status.setText(f"❌ Ошибка загрузки {key}: {error}")
+            self.lbl_download_status.setStyleSheet("color: #f38ba8;")
+        self._update_model_row_state(key)
+
+    def _delete_model(self, key: str):
+        """Delete model file from disk to free up space."""
+        from src.engine.model_downloader import MODELS_CATALOG
+        info = MODELS_CATALOG.get(key)
+        if not info:
+            return
+
+        path = os.path.join(WHISPER_CPP_MODELS_DIR, info["filename"])
+        if os.path.exists(path):
+            reply = QMessageBox.question(
+                self, "Удаление модели",
+                f"Вы уверены, что хотите удалить модель {info['name']}?\nФайл: {path}",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                try:
+                    os.remove(path)
+                    self._update_model_row_state(key)
+                except Exception as e:
+                    QMessageBox.warning(self, "Ошибка", f"Не удалось удалить файл: {e}")
 
     def _populate_audio_devices(self):
         """Query available audio input devices."""

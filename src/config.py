@@ -1,6 +1,7 @@
 """Configuration, paths, and constants for VoxTurbo AI."""
 
 import os
+import sys
 import json
 import logging
 from pathlib import Path
@@ -8,18 +9,31 @@ from pathlib import Path
 # Base directories
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WHISPER_CPP_DIR = os.path.join(APP_DIR, 'whisper.cpp')
-WHISPER_CPP_SERVER_BIN = os.path.join(WHISPER_CPP_DIR, 'build', 'bin', 'whisper-server')
+
+# Cross-platform binary naming
+if sys.platform == "win32":
+    WHISPER_CPP_SERVER_BIN = os.path.join(WHISPER_CPP_DIR, 'build', 'bin', 'whisper-server.exe')
+    if not os.path.exists(WHISPER_CPP_SERVER_BIN):
+        WHISPER_CPP_SERVER_BIN = os.path.join(APP_DIR, 'bin', 'whisper-server.exe')
+else:
+    WHISPER_CPP_SERVER_BIN = os.path.join(WHISPER_CPP_DIR, 'build', 'bin', 'whisper-server')
+
 WHISPER_CPP_MODELS_DIR = os.path.join(WHISPER_CPP_DIR, 'models')
 WHISPER_CPP_VAD_MODEL = os.path.join(WHISPER_CPP_MODELS_DIR, 'ggml-silero-v5.1.2.bin')
 WAKEWORDS_DIR = os.path.join(APP_DIR, 'models', 'wakewords')
 TURBO_PORT = 8091
 
-# Standard XDG paths for user configuration and state data
-XDG_CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-XDG_STATE_HOME = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
-
-USER_CONFIG_DIR = os.path.join(XDG_CONFIG_HOME, "voxturbo")
-USER_STATE_DIR = os.path.join(XDG_STATE_HOME, "voxturbo")
+# Cross-platform User paths (Windows AppData vs Linux XDG)
+if sys.platform == "win32":
+    APPDATA = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
+    LOCALAPPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))
+    USER_CONFIG_DIR = os.path.join(APPDATA, "VoxTurbo")
+    USER_STATE_DIR = os.path.join(LOCALAPPDATA, "VoxTurbo")
+else:
+    XDG_CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    XDG_STATE_HOME = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
+    USER_CONFIG_DIR = os.path.join(XDG_CONFIG_HOME, "voxturbo")
+    USER_STATE_DIR = os.path.join(XDG_STATE_HOME, "voxturbo")
 
 CONFIG_FILE = os.path.join(USER_CONFIG_DIR, 'config.json')
 LOG_FILE = os.path.join(USER_STATE_DIR, 'voxturbo.log')

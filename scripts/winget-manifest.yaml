@@ -1,0 +1,27 @@
+PackageIdentifier: TitanAutomation.VoxTurboAI
+PackageVersion: 1.0.0
+PackageName: VoxTurbo AI
+Publisher: Titan Automation
+PublisherUrl: https://github.com/pokus32/VoxTurbo-AI
+License: MIT
+ShortDescription: Ultra-fast offline voice typing and AI transcription with GigaAM and Whisper Large-v3-Turbo.
+Description: |
+  VoxTurbo AI provides ultra-low latency voice-to-text dictation across any application in Windows.
+  Features instant RAM inference with GigaAM and Whisper Large-v3-Turbo, wake word activation,
+  multilingual speech detection, and neural punctuation.
+Tags:
+  - speech-to-text
+  - voice-typing
+  - whisper
+  - gigaam
+  - ai
+  - productivity
+Installers:
+  - Architecture: x64
+    InstallerType: inno
+    InstallerUrl: https://github.com/pokus32/VoxTurbo-AI/releases/download/v1.0.0/VoxTurbo-Setup-x64.exe
+    InstallerSha256: <SHA256_HASH_OF_INSTALLER>
+    InstallerLocale: ru-RU
+    UpgradeBehavior: install
+ManifestType: singleton
+ManifestVersion: 1.6.0

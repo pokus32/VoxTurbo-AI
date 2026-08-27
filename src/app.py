@@ -37,6 +37,15 @@ class VoiceTurboApp:
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
+        # Check for first-run model installation
+        from src.engine.model_downloader import get_installed_whisper_models
+        from src.ui.first_run_dialog import FirstRunDialog
+        
+        installed_models = get_installed_whisper_models()
+        if not installed_models:
+            dlg = FirstRunDialog(default_model="small")
+            dlg.exec_()
+
         # Configuration
         self.cfg = load_user_config()
         self.model_quant = self.cfg.get("model_quant", "gigaam_v2")
